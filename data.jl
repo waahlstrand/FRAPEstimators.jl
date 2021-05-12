@@ -33,7 +33,7 @@ end
 end
 
 function Base.length(d::DataGenerator)
-    n = d.nobs / d.batchsize
+    n = d.n_obs / d.batch_size
     d.partial ? ceil(Int,n) : floor(Int,n)
 end
 
@@ -45,11 +45,11 @@ function generate(d::DataGenerator)
     # Dimensions
     width   = d.bath.n_pixels + 2*d.bath.n_pad_pixels
     height  = width
-    channels = d.bath.n_prebleach_frames + d.bath.n_bleach_frames + d.bath.n_postbleach_frames
+    channels = d.bath.n_prebleach_frames + d.bath.n_postbleach_frames
 
     # Pre-allocate batch
     X = zeros((width, height, channels, d.batch_size)) |> gpu
-    y = zeros((3, d.batch_size))
+    y = zeros((3, d.batch_size)) |> gpu
 
     # Could possibly be parallelized
     for b in d.batch_size
@@ -72,13 +72,10 @@ function generate(d::DataGenerator)
                                       a, 
                                       d.experiment.b
                                       )
+        y[:,b] = [D, c₀, α]
 
-        y[1,b] = D
-        y[2,b] = c₀
-        y[3,b] = a
 
         X[:,:,:,b] .= FRAP.run(experiment, d.bath, d.rng)
-        # X = "test"
 
     end
 
