@@ -49,10 +49,10 @@ function generate(d::DataGenerator)
 
     # Pre-allocate batch
     X = zeros((width, height, channels, d.batch_size)) |> gpu
-    y = zeros((3, d.batch_size)) |> gpu
+    y = zeros((3, d.batch_size)) 
 
     # Could possibly be parallelized
-    for b in d.batch_size
+    for b in 1:d.batch_size
 
         # Generate experiment parameters and targets
         D   = sample(d.experiment, :D) # D
@@ -73,11 +73,11 @@ function generate(d::DataGenerator)
                                       d.experiment.b
                                       )
         y[:,b] = [D, c₀, α]
-
-
-        X[:,:,:,b] .= FRAP.run(experiment, d.bath, d.rng)
+        X[:,:,:,b] = FRAP.run(experiment, d.bath, d.rng)
 
     end
+
+    y = y |> gpu
 
     return (X, y)
 
@@ -88,21 +88,29 @@ function sample(experiment::FRAP.ExperimentParams, key::Symbol)
     # Get parameter bounds
     bounds = getfield(experiment, key)
 
-    if key == :D 
+    if length(bounds) > 1
 
-        sample = logunirand(bounds[1], bounds[2])
+        if key == :D 
 
-    elseif key == :c₀
+            sample = logunirand(bounds[1], bounds[2])
 
-        sample = unirand(bounds[1], bounds[2])
+        elseif key == :c₀
 
-    elseif key == :α
+            sample = unirand(bounds[1], bounds[2])
 
-        sample = unirand(bounds[1], bounds[2])
+        elseif key == :α
 
-    elseif key == :a
+            sample = unirand(bounds[1], bounds[2])
 
-        sample = logunirand(bounds[1], bounds[2])
+        elseif key == :a
+
+            sample = logunirand(bounds[1], bounds[2])
+
+        end
+
+    else
+        
+        sample = bounds
 
     end
 

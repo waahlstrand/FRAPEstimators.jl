@@ -28,12 +28,12 @@ function train!(loss, θ, data::DataGenerator, optimizer)
     θ = θ |> Params
 
     # Yield new generated data in a loop
-    for d in data
+    for (x, y) in data
 
         # Calculate the gradients from the loss
         ∇θ = gradient(θ) do
 
-            L = loss(d...)
+            L = loss(x, y)
 
             return L
         end
@@ -50,21 +50,26 @@ end
 function main(batch_size, n_batches)
 
     @info "Initializing..."
-    rng = MersenneTwister(1234);
+    rng = MersenneTwister(1234)
 
     @info "Loading model..."
     init = Flux.glorot_uniform(rng)
     n_channels = 110
     model = Chain(
-        Conv((4,4), n_channels => n_channels, relu, stride = 1; init=init),
+        Conv((4,4), n_channels => n_channels, stride = 1; init=init),
+        BatchNorm(n_channels, relu),
         MaxPool((3,3)),
-        Conv((3,3), n_channels => n_channels, relu, stride = 1; init=init),
+        Conv((3,3), n_channels => n_channels, stride = 1; init=init),
+        BatchNorm(n_channels, relu),
         MaxPool((3,3)),
-        Conv((3,3), n_channels => n_channels, relu; init=init),
+        Conv((3,3), n_channels => n_channels; init=init),
+        BatchNorm(n_channels, relu),
         MaxPool((3,3)),
-        Conv((3,3), n_channels => n_channels, relu; init=init),
+        Conv((3,3), n_channels => n_channels; init=init),
+        BatchNorm(n_channels, relu),
         MaxPool((2,2)),
-        Conv((3,3), n_channels => n_channels, relu; init=init),
+        Conv((3,3), n_channels => n_channels; init=init),
+        BatchNorm(n_channels, relu),
         MaxPool((3,3)),
         Flux.flatten,
         Dense(n_channels, 1024, relu; initW=init, initb=init),
@@ -75,11 +80,11 @@ function main(batch_size, n_batches)
     # Define training parameters
     loss(x, y)  = Flux.Losses.mse(model(x), y)
     θ           = Flux.params(model)
-    optimizer   = Flux.Descent(1e-6)
+    optimizer   = Flux.Momentum(1e-5, 0.99)
 
     # Load parameters from file
     @info "Loading parameters..."
-    experiment, bath = FRAP.from_config("../FRAP.jl/configs/range.yml")
+    experiment, bath = FRAP.from_config("range.yml")
     
     # Create a dataset
     @info "Indexing data..."
@@ -94,4 +99,4 @@ function main(batch_size, n_batches)
 end
 
 
-main(4, 10)
+main(4, 50)
