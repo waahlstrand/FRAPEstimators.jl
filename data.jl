@@ -1,5 +1,5 @@
 # Adapted from Knet's src/data.jl (author: Deniz Yuret)
-import .FRAP
+import FRAP: ExperimentParams, BathParams, run, recovery_curve
 import Flux
 
 struct DataGenerator{D}
@@ -7,12 +7,13 @@ struct DataGenerator{D}
     batch_size::Int
     partial::Bool
     imax::Int
-    experiment::FRAP.ExperimentParams
-    bath::FRAP.BathParams
+    experiment::ExperimentParams
+    bath::BathParams
     rng::Random.AbstractRNG
+    mode::Symbol
 end
 
-function DataGenerator(n_obs, experiment, bath, rng; batch_size=1, partial=true)
+function DataGenerator(n_obs, experiment, bath, rng; batch_size=1, partial=true, mode=:pixel)
     batch_size > 0 || throw(ArgumentError("Need positive batchsize"))
 
     if n_obs < batch_size
@@ -20,7 +21,7 @@ function DataGenerator(n_obs, experiment, bath, rng; batch_size=1, partial=true)
         batch_size = n_obs
     end
     imax = partial ? n_obs : n_obs - batch_size + 1
-    DataGenerator(n_obs, batch_size, partial, imax, experiment, bath, rng)
+    DataGenerator(n_obs, batch_size, partial, imax, experiment, bath, rng, mode)
 end
 
 @Base.propagate_inbounds function Base.iterate(d::DataGenerator, i=0)     # returns data in d.indices[i+1:i+batchsize]
@@ -48,11 +49,22 @@ function generate(d::DataGenerator)
     channels = d.bath.n_prebleach_frames + d.bath.n_postbleach_frames
 
     # Pre-allocate batch
-    X = zeros((width, height, channels, d.batch_size)) |> gpu
+    if d.mode == :pixel
+
+        X = zeros((width, height, channels, d.batch_size)) |> Flux.gpu
+        batch_idxs = 1:size(X, 4)
+
+    else
+
+        X = zeros((channels, d.batch_size)) |> Flux.gpu
+        batch_idxs = 1:size(X, 2)
+
+    end
+
     y = zeros((3, d.batch_size)) 
 
     # Could possibly be parallelized
-    for b in 1:d.batch_size
+    for b in batch_idxs
 
         # Generate experiment parameters and targets
         D   = sample(d.experiment, :D) # D
@@ -62,7 +74,7 @@ function generate(d::DataGenerator)
 
         # Create a new set of experiment parameters for each run
         # but keep the bath parameters
-        experiment = FRAP.ExperimentParams(c₀, 
+        experiment = ExperimentParams(c₀, 
                                       d.experiment.ϕₘ, 
                                       D, 
                                       d.experiment.δt, 
@@ -73,17 +85,23 @@ function generate(d::DataGenerator)
                                       d.experiment.b
                                       )
         y[:,b] = [D, c₀, α]
-        X[:,:,:,b] = FRAP.run(experiment, d.bath, d.rng)
+
+        if d.mode == :pixel
+            X[:,:,:,b] = run(experiment, d.bath, d.rng)
+        else
+            x = run(experiment, d.bath, d.rng)
+            X[:, b] = recovery_curve(x, d.bath)
+        end
 
     end
 
-    y = y |> gpu
+    y = y |> FRAP.gpu
 
     return (X, y)
 
 end
 
-function sample(experiment::FRAP.ExperimentParams, key::Symbol)
+function sample(experiment::ExperimentParams, key::Symbol)
 
     # Get parameter bounds
     bounds = getfield(experiment, key)

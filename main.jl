@@ -6,76 +6,22 @@ using Base.Iterators: take
 using Zygote: Params, gradient
 using ProgressMeter: Progress, next!
 
-include(joinpath("..", "FRAP.jl", "src", "FRAP.jl"))
-
 include("utils.jl")
 include("data.jl")
-
+include("models.jl")
+include("train.jl")
 
 # Packages 
-import .FRAP
-
-function train!(loss, θ, data::DataGenerator, optimizer)
-    # Trains a model with parameters θ with respect to a 
-    # loss function and optimizer for a number of iterations in a dataset
-        
-    p = Progress(length(data); showspeed=true)
-
-    # Declare loss to make it loggable
-    local L
-
-    # Flux gradient wants a Params struct
-    θ = θ |> Params
-
-    # Yield new generated data in a loop
-    for (x, y) in data
-
-        # Calculate the gradients from the loss
-        ∇θ = gradient(θ) do
-
-            L = loss(x, y)
-
-            return L
-        end
-
-        # Update progressmeter
-        next!(p; showvalues = [(:L,L)])
-
-        # Update the weights and optimizer
-        Flux.update!(optimizer, θ, ∇θ)
-
-    end
-end
+using FRAP
  
 function main(batch_size, n_batches)
+    @info "Cuda functional: $(CUDA.functional())"
 
     @info "Initializing..."
     rng = MersenneTwister(1234)
-
+    
     @info "Loading model..."
-    init = Flux.glorot_uniform(rng)
-    n_channels = 110
-    model = Chain(
-        Conv((4,4), n_channels => n_channels, stride = 1; init=init),
-        BatchNorm(n_channels, relu),
-        MaxPool((3,3)),
-        Conv((3,3), n_channels => n_channels, stride = 1; init=init),
-        BatchNorm(n_channels, relu),
-        MaxPool((3,3)),
-        Conv((3,3), n_channels => n_channels; init=init),
-        BatchNorm(n_channels, relu),
-        MaxPool((3,3)),
-        Conv((3,3), n_channels => n_channels; init=init),
-        BatchNorm(n_channels, relu),
-        MaxPool((2,2)),
-        Conv((3,3), n_channels => n_channels; init=init),
-        BatchNorm(n_channels, relu),
-        MaxPool((3,3)),
-        Flux.flatten,
-        Dense(n_channels, 1024, relu; initW=init, initb=init),
-        Dense(1024, 512, relu; initW=init, initb=init),
-        Dense(512, 3; initW=init, initb=init)
-    ) |> gpu
+    model = fc()
     
     # Define training parameters
     loss(x, y)  = Flux.Losses.mse(model(x), y)
@@ -88,15 +34,21 @@ function main(batch_size, n_batches)
     
     # Create a dataset
     @info "Indexing data..."
-    data = DataGenerator(n_batches*batch_size, experiment, bath, rng; batch_size = batch_size)
+    data = DataGenerator(n_batches*batch_size, experiment, bath, rng; batch_size = batch_size, mode = :rc)
 
     # Train the model parameters
     @info "Starting training..."
+
     train!(loss, θ, data, optimizer)
     @info "Training complete!"
+
 
 
 end
 
 
-main(4, 50)
+if length(ARGS) > 0
+    main(convert(Int64, ARGS[0]), convert(Int64, ARGS[1]))
+else
+    main(256, 100)
+end
