@@ -13,6 +13,7 @@ include("train.jl")
 
 # Packages 
 using FRAP
+
  
 function main(batch_size, n_batches)
     @info "Cuda functional: $(CUDA.functional())"
@@ -50,5 +51,7 @@ end
 if length(ARGS) > 0
     main(convert(Int64, ARGS[0]), convert(Int64, ARGS[1]))
 else
-    main(256, 100)
+
+    main(256, 200)
+    
 end
