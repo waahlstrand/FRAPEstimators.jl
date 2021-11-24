@@ -84,7 +84,7 @@ function generate(d::DataGenerator)
                                       a, 
                                       d.experiment.b
                                       )
-        y[:,b] = [D, c₀, α]
+        y[:,b] = [log10(D), c₀, α]
 
         if d.mode == :pixel
             X[:,:,:,b] = run(experiment, d.bath, d.rng)
