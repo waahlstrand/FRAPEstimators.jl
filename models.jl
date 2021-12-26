@@ -37,7 +37,7 @@ function fc()
         Dense(512, 256, relu),
         Dense(256, 128, relu),
         Dense(128, 64, relu),
-        Dense(64, 3, relu)
+        Dense(64, 3)
     ) |> Flux.gpu
 
     return model

@@ -94,7 +94,7 @@ function generate(d::DataGenerator)
 
     end
 
-    y = y |> FRAP.gpu
+    y = y |> gpu
 
     return (X, y)
 
