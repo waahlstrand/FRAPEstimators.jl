@@ -9,11 +9,10 @@ struct DataGenerator{D}
     imax::Int
     experiment::ExperimentParams
     bath::BathParams
-    rng::Random.AbstractRNG
     mode::Symbol
 end
 
-function DataGenerator(n_obs, experiment, bath, rng; batch_size=1, partial=true, mode=:pixel)
+function DataGenerator(n_obs, experiment, bath; batch_size=1, partial=true, mode=:pixel)
     batch_size > 0 || throw(ArgumentError("Need positive batchsize"))
 
     if n_obs < batch_size
@@ -21,7 +20,7 @@ function DataGenerator(n_obs, experiment, bath, rng; batch_size=1, partial=true,
         batch_size = n_obs
     end
     imax = partial ? n_obs : n_obs - batch_size + 1
-    DataGenerator(n_obs, batch_size, partial, imax, experiment, bath, rng, mode)
+    DataGenerator(n_obs, batch_size, partial, imax, experiment, bath, mode)
 end
 
 @Base.propagate_inbounds function Base.iterate(d::DataGenerator, i=0)     # returns data in d.indices[i+1:i+batchsize]
@@ -87,9 +86,9 @@ function generate(d::DataGenerator)
         y[:,b] = [log10(D), c₀, α]
 
         if d.mode == :pixel
-            X[:,:,:,b] = run(experiment, d.bath, d.rng)
+            X[:,:,:,b] = run(experiment, d.bath)
         else
-            x = run(experiment, d.bath, d.rng)
+            x = run(experiment, d.bath)
             X[:, b] = recovery_curve(x, d.bath)
         end
 
